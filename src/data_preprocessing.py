@@ -30,7 +30,7 @@ def handle_missing_values(df):
     # Implement your missing value handling logic here
 
     if df.isnull().sum().sum() > 0:
-        
+
         
     return df
 
@@ -69,6 +69,7 @@ def preprocess_data(file_path):
     
     Returns:
     pd.DataFrame: Preprocessed dataframe
+    
     """
     df = load_data(file_path)
     df = handle_missing_values(df)
