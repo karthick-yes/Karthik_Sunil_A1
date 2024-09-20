@@ -1,7 +1,3 @@
-import numpy as np
-import pandas as pd
-import matplotlib.pyplot as plt
-
 import pandas as pd
 import numpy as np
 
@@ -27,24 +23,45 @@ def handle_missing_values(df):
     Returns:
     pd.DataFrame: Dataframe with handled missing values
     """
-    # Implement your missing value handling logic here
-
-    if df.isnull().sum().sum() > 0:
-
-        
+    numeric_columns = df.select_dtypes(include=[np.number]).columns
+    categorical_columns = df.select_dtypes(include=['object']).columns
+    
+    for col in numeric_columns:
+        df[col].fillna(df[col].mean(), inplace=True)
+    
+    for col in categorical_columns:
+        df[col].fillna(df[col].mode()[0], inplace=True)
+    
     return df
 
-def encode_categorical_variables(df):
+def target_encoding(df, categorical_columns, target_column, alpha=5):
     """
-    Encode categorical variables in the dataset.
+    Perform target encoding on categorical variables.
     
     Args:
     df (pd.DataFrame): Input dataframe
+    categorical_columns (list): List of categorical column names
+    target_column (str): Name of the target column
+    alpha (float): Smoothing factor
     
     Returns:
-    pd.DataFrame: Dataframe with encoded categorical variables
+    pd.DataFrame: Dataframe with target-encoded features
     """
-    # Implement your categorical variable encoding logic here
+    global_mean = df[target_column].mean()
+    
+    for col in categorical_columns:
+        # Compute the mean of the target for each category
+        category_means = df.groupby(col)[target_column].agg(['mean', 'count'])
+        
+        # Compute smoothed mean
+        smoothed_mean = (category_means['count'] * category_means['mean'] + alpha * global_mean) / (category_means['count'] + alpha)
+        
+        # Map the smoothed mean back to the original dataframe
+        df[f'{col}_encoded'] = df[col].map(smoothed_mean)
+        
+        # Drop the original categorical column
+        df.drop(col, axis=1, inplace=True)
+    
     return df
 
 def normalize_features(df):
@@ -57,28 +74,44 @@ def normalize_features(df):
     Returns:
     pd.DataFrame: Dataframe with normalized features
     """
-    # Implement your feature normalization logic here
+    numeric_columns = df.select_dtypes(include=[np.number]).columns
+    
+    for col in numeric_columns:
+        if col != 'FUEL CONSUMPTION':  
+            mean = df[col].mean()
+            std = df[col].std()
+            df[col] = (df[col] - mean) / std
+    
     return df
 
-def preprocess_data(file_path):
+def preprocess_data(file_path, target_column):
     """
     Main function to preprocess the data.
     
     Args:
     file_path (str): Path to the raw data file
+    target_column (str): Name of the target column
     
     Returns:
-    pd.DataFrame: Preprocessed dataframe
-    
+    tuple: Preprocessed features (X) and target variable (y)
     """
     df = load_data(file_path)
     df = handle_missing_values(df)
-    df = encode_categorical_variables(df)
-    df = normalize_features(df)
-    return df
+    
+    categorical_columns = df.select_dtypes(include=['object']).columns
+    df = target_encoding(df, categorical_columns, target_column)
+    
+    y = df[target_column]
+    X = df.drop(columns=[target_column])
+    
+    X = normalize_features(X)
+    
+    return X, y
 
 if __name__ == "__main__":
-    # Example usage
-    raw_data_path = "path/to/your/raw_data.csv"
-    preprocessed_data = preprocess_data(raw_data_path)
-    preprocessed_data.to_csv("path/to/your/preprocessed_data.csv", index=False)
+    # Example usage right here
+    raw_data_path = "data/training_data.csv"
+    target_column = "FUEL CONSUMPTION"
+    X, y = preprocess_data(raw_data_path, target_column)
+    print("Preprocessed data shape:", X.shape)
+    print("Target variable shape:", y.shape)
