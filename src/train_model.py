@@ -50,4 +50,137 @@ class RegularizedRegression:
         
         # get fitted values
         self.y_hat = np.dot(self.X, self.beta_hats)
-   
+        
+    def fit_lasso(self, X, y, lam=0, n_iters=2000, lr=0.0001, intercept=False, standardize=True):
+        # record data and dimensions
+        self._record_info(X, y, lam, intercept, standardize)
+        
+        # estimate parameters
+        beta_hats = np.random.randn(self.D)
+        for i in range(n_iters):
+            dL_dbeta = -self.X.T @ (self.y - (self.X @ beta_hats)) + self.lam*sign(beta_hats, True)
+            beta_hats -= lr*dL_dbeta 
+        self.beta_hats = beta_hats
+        
+        # get fitted values
+        self.y_hat = np.dot(self.X, self.beta_hats)
+
+    def predict(self, X):
+        """
+        Make predictions using the trained model.
+        
+        Args:
+        X (np.array): Features
+        
+        Returns:
+        np.array: Predicted values
+        """
+        if hasattr(self, 'beta_hats'):
+            if self.standardize:
+                X = (X - self.means) / self.stds
+            
+            # If intercept was not included during fitting, add it now
+            if not self.intercept:
+                X = np.column_stack((np.ones(X.shape[0]), X))
+            
+            return np.dot(X, self.beta_hats)
+        else:
+            raise ValueError("Model has not been fitted yet.")
+
+def k_fold_cross_validation(X, y, k, model_type, lam, n_iters=2000, lr=0.0001):
+    """
+    Perform k-fold cross-validation.
+    
+    Args:
+    X (np.array): Features
+    y (np.array): Target variable
+    k (int): Number of folds
+    model_type (str): Type of model ('ridge' or 'lasso')
+    lam (float): Regularization parameter
+    n_iters (int): Number of iterations for Lasso (ignored for Ridge)
+    lr (float): Learning rate for Lasso (ignored for Ridge)
+    
+    Returns:
+    float: Mean cross-validation score (R-squared)
+    """
+    fold_size = len(X) // k
+    scores = []
+    
+    for i in range(k):
+        # Create train and validation sets
+        val_start = i * fold_size
+        val_end = (i + 1) * fold_size if i != k - 1 else len(X)
+        
+        X_val = X[val_start:val_end]
+        y_val = y[val_start:val_end]
+        X_train = np.concatenate([X[:val_start], X[val_end:]])
+        y_train = np.concatenate([y[:val_start], y[val_end:]])
+        
+        # Train model
+        model = RegularizedRegression()
+        if model_type == 'ridge':
+            model.fit_ridge(X_train, y_train, lam=lam, intercept=True, standardize=True)
+        elif model_type == 'lasso':
+            model.fit_lasso(X_train, y_train, lam=lam, n_iters=n_iters, lr=lr, intercept=True, standardize=True)
+        
+        # Make predictions and calculate R-squared
+        y_pred = model.predict(X_val)
+        r2 = 1 - (np.sum((y_val - y_pred)**2) / np.sum((y_val - np.mean(y_val))**2))
+        scores.append(r2)
+    
+    return np.mean(scores)
+
+def train_model(data_path, target_column, model_type='ridge', lam=0.1, n_iters=2000, lr=0.0001, k=5):
+    """
+    Main function to train the regularized regression model using k-fold cross-validation.
+    
+    Args:
+    data_path (str): Path to the raw data file
+    target_column (str): Name of the target column
+    model_type (str): Type of model to train ('ridge' or 'lasso')
+    lam (float): Regularization parameter
+    n_iters (int): Number of iterations for Lasso (ignored for Ridge)
+    lr (float): Learning rate for Lasso (ignored for Ridge)
+    k (int): Number of folds for cross-validation
+    
+    Returns:
+    tuple: Trained model and mean cross-validation score
+    """
+    # Load and preprocess the data
+    X, y = preprocess_data(data_path, target_column)
+    
+    # Perform k-fold cross-validation
+    cv_score = k_fold_cross_validation(X.values, y.values, k, model_type, lam, n_iters, lr)
+    
+    # Train final model on all data
+    model = RegularizedRegression()
+    if model_type == 'ridge':
+        model.fit_ridge(X.values, y.values, lam=lam, intercept=True, standardize=True)
+    elif model_type == 'lasso':
+        model.fit_lasso(X.values, y.values, lam=lam, n_iters=n_iters, lr=lr, intercept=True, standardize=True)
+    else:
+        raise ValueError("Invalid model_type. Choose 'ridge' or 'lasso'.")
+    
+    return model, cv_score
+
+if __name__ == "__main__":
+    # Example usage
+    data_path = "data/training_data.csv"
+    target_column = "FUEL CONSUMPTION"
+    
+    # Train Ridge model
+    ridge_model, ridge_cv_score = train_model(data_path, target_column, model_type='ridge', lam=0.1, k=5)
+    print(f"Ridge model cross-validation score: {ridge_cv_score:.4f}")
+    
+    # Train Lasso model
+    lasso_model, lasso_cv_score = train_model(data_path, target_column, model_type='lasso', lam=0.1, n_iters=2000, lr=0.0001, k=5)
+    print(f"Lasso model cross-validation score: {lasso_cv_score:.4f}")
+    
+    # Save the trained models
+    with open('models/ridge_model_final.pkl', 'wb') as f:
+        pickle.dump(ridge_model, f)
+    
+    with open('models/lasso_model_final.pkl', 'wb') as f:
+        pickle.dump(lasso_model, f)
+    
+    print("Models trained and saved successfully.")
