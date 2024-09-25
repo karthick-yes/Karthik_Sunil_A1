@@ -15,22 +15,33 @@ def load_data(file_path):
 
 def handle_missing_values(df):
     """
-    Handle missing values in the dataset.
+    Handle missing values in the DataFrame.
+    
+    Args:
+    df (pd.DataFrame): DataFrame to handle missing values for
+    
+    Returns:
+    pd.DataFrame: DataFrame with missing values handled
+    """
+    for col in df.columns:
+        if df[col].dtype == 'object':
+            df[col] = df[col].fillna(df[col].mode()[0])
+        else:
+            df[col] = df[col].fillna(df[col].mean())
+    
+    return df
+
+def create_interaction_features(df):
+    """
+    Create interaction features and calculate correlation matrix.
     
     Args:
     df (pd.DataFrame): Input dataframe
     
     Returns:
-    pd.DataFrame: Dataframe with handled missing values
+    pd.DataFrame: Dataframe with interaction feature and correlation matrix
     """
-    numeric_columns = df.select_dtypes(include=[np.number]).columns
-    categorical_columns = df.select_dtypes(include=['object']).columns
-    
-    for col in numeric_columns:
-        df[col].fillna(df[col].mean(), inplace=True)
-    
-    for col in categorical_columns:
-        df[col].fillna(df[col].mode()[0], inplace=True)
+    df['cylinders_and_enginesize'] = df['CYLINDERS'] * df['ENGINE SIZE']
     
     return df
 
@@ -98,19 +109,31 @@ def preprocess_data(file_path, target_column):
     df = load_data(file_path)
     df = handle_missing_values(df)
     
+
+    # Drop the year column since it is useless
+    if 'Year' in df.columns:
+        df.drop(columns='Year', inplace=True)
+    
+    # Target encoding
     categorical_columns = df.select_dtypes(include=['object']).columns
     df = target_encoding(df, categorical_columns, target_column)
     
+    # Create interaction features
+    df = create_interaction_features(df)
+    
+    # Separate the target and features
     y = df[target_column]
     X = df.drop(columns=[target_column])
     
+    # Normalize the features
     X = normalize_features(X)
     
+   
     return X, y
 
 if __name__ == "__main__":
-    # Example usage right here
-    raw_data_path = "data/training_data.csv"
+    # Example usage
+    raw_data_path = "../data/training_data.csv"
     target_column = "FUEL CONSUMPTION"
     X, y = preprocess_data(raw_data_path, target_column)
     print("Preprocessed data shape:", X.shape)
