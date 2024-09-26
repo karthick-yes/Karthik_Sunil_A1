@@ -16,3 +16,25 @@ def load_model(model_path):
     """
     with open(model_path, 'rb') as f:
         return pickle.load(f)
+    
+
+def evaluate_model(y_true, y_pred):
+    """
+    Calculate evaluation metrics for the model.
+    
+    Args:
+    y_true (np.array): True target values
+    y_pred (np.array): Predicted target values
+    
+    Returns:
+    dict: Dictionary containing evaluation metrics
+    """
+    mse = np.mean((y_true - y_pred)**2)
+    rmse = np.sqrt(mse)
+    r2 = 1 - (np.sum((y_true - y_pred)**2) / np.sum((y_true - np.mean(y_true))**2))
+    
+    return {
+        'Mean Squared Error (MSE)': mse,
+        'Root Mean Squared Error (RMSE)': rmse,
+        'R-squared (R²) Score': r2
+    }
