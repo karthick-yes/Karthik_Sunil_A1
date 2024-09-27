@@ -38,3 +38,37 @@ def evaluate_model(y_true, y_pred):
         'Root Mean Squared Error (RMSE)': rmse,
         'R-squared (R²) Score': r2
     }
+
+def main(model_path, data_path, metrics_output_path, predictions_output_path):
+    # Load and preprocess the data
+    target_column = "Fuel Consumption"
+    X, y_true = preprocess_data(data_path, target_column)
+    
+    # Load the model and make predictions
+    model = load_model(model_path)
+    y_pred = model.predict(X.values)
+    
+    # Evaluate the model
+    metrics = evaluate_model(y_true, y_pred)
+    
+    # Save metrics
+    with open(metrics_output_path, 'w') as f:
+        f.write("Regression Metrics:\n")
+        for metric, value in metrics.items():
+            f.write(f"{metric}: {value:.2f}\n")
+    
+    # Save predictions
+    pd.DataFrame(y_pred).to_csv(predictions_output_path, index=False, header=False)
+    
+    print("Evaluation complete. Metrics and predictions saved.")
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Evaluate regression model and generate predictions.")
+    parser.add_argument("--model_path", required=True, help="Path to the saved model file")
+    parser.add_argument("--data_path", required=True, help="Path to the data CSV file")
+    parser.add_argument("--metrics_output_path", required=True, help="Path to save evaluation metrics")
+    parser.add_argument("--predictions_output_path", required=True, help="Path to save predictions")
+    
+    args = parser.parse_args()
+    
+    main(args.model_path, args.data_path, args.metrics_output_path, args.predictions_output_path)
